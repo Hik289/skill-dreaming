@@ -1,0 +1,7 @@
+Use case: precise-object-edit
+Edit the attached Skill Dreaming research figure with ONLY these local corrections. Preserve the complete composition, all three lanes, PR documents, all repository trees, the title, the exact subtitle "Skill streaming, Skills dreaming", and all other text.
+1. In the S t+1 snapshot, the BLUE "Provider extension" document is carried over from the earlier round. Replace its "(new)" text with "(reused)".
+2. In S t+2, both BLUE documents "Provider extension" and "Exporter extension" are carried over. Replace their "(new)" text with "(reused)". Keep the GREEN Exporter extension in S t+1 and GREEN New registry in S t+2 labelled "(new)".
+3. Remove the entire long lower-middle text ribbon reading "Existing repo + prior PRs + previous skills -> aligned skill set", because the green vertical arrows overlap it. Preserve the lavender background after removing it; do not add replacement text in that location.
+4. In the third skill snapshot draw a small unambiguous dark-purple arrow from the coral retired "Old registry" node upward to the GREEN "New registry" node, labelled "SUPERSEDE". Route this short arrow locally, entirely clear of document text, the green implementation arrow, and the maintenance/negative-rule nodes. Make extra local space only if necessary.
+Do not alter node colors, headings, labels, arrows or content anywhere else. No new layout, no title changes, no additional text. High resolution.

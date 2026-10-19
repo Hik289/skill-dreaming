@@ -14,13 +14,17 @@
 
 </div>
 
-![Skill Dreaming: PR evidence, verification, skill alignment, complete feature PRs, and learning over a PR stream](assets/main_figure.png)
+![Skill streaming, Skills dreaming: a PR stream generates and revises persistent skills that extend and maintain an evolving repository](assets/main_figure_streaming_v2.png)
+
+**PRs teach skills. Skills extend and maintain the repository.** Each new round combines the existing repository, available PR evidence, and previous skills to generate or revise the next skill set. Reused skills carry forward, new skills support new features, and obsolete rules can be superseded.
 
 ## Why Skill Dreaming?
 
 A feature request rarely explains where a change belongs, which internal API to extend, which earlier feature to imitate, or which tests, documentation, examples, and configuration must change together. Those engineering decisions live in a repository's PR history and review outcomes. They also change as the repository evolves.
 
 Skill Dreaming turns that evidence into a persistent, repository-specific skill set. As new PRs arrive, the system retrieves useful past evidence, creates or revises skills, aligns their relationships, and uses the resulting set to implement complete feature changes. Observed outcomes become evidence for later rounds. Model parameters remain fixed.
+
+**Skill streaming, Skills dreaming.** The name echoes the continuous stream of skills induced from PRs: each PR can teach a new implementation pattern, revise a maintenance obligation, or retire an outdated convention. Dreaming is grounded in PR evidence, and its output is applied to both extending and maintaining the repository.
 
 - **Learn engineering decisions from PRs.** Capture implementation procedures, maintenance obligations, review constraints, and failure patterns.
 - **Evolve a skill set across tasks.** Reuse, update, specialize, extend, mark conflicts, and supersede skills as repository conventions change.
@@ -39,6 +43,13 @@ Repository + feature request
   -> implement and verify the complete feature PR
   -> record outcomes for the next round
 ```
+
+<details>
+<summary>Earlier pipeline illustration, preserved</summary>
+
+![Earlier Skill Dreaming pipeline and skill graph illustration](assets/main_figure.png)
+
+</details>
 
 A skill records a trigger, procedure, negative constraints, required maintenance surfaces, validation steps, evidence provenance, version scope, and relationships to other skills. The update vocabulary is `ADD`, `UPDATE`, `SPECIALIZE`, `EXTEND`, `CONFLICT`, `SUPERSEDE`, and `KEEP`.
 
