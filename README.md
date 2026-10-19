@@ -4,13 +4,13 @@
 
 **Aligning repository skills with a stream of pull requests**
 
-[![Checks](https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml/badge.svg)](https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml)
+[![Checks](https://github.com/xfab-xinyuansong/skill-dreaming/actions/workflows/ci.yml/badge.svg)](https://github.com/xfab-xinyuansong/skill-dreaming/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![Learning](https://img.shields.io/badge/Learning-training--free-16856B)
 
 [Method](docs/method.md) · [Results](docs/results.md) · [Reproduction](docs/reproduction.md) · [Implementation](#implementation)
 
-[Repository](https://github.com/Hik289/skill-dreaming) · [Mirror](https://github.com/xfab-xinyuansong/skill-dreaming)
+[Repository](https://github.com/xfab-xinyuansong/skill-dreaming) · [Hik289](https://github.com/Hik289/skill-dreaming)
 
 </div>
 
@@ -90,7 +90,7 @@ Skills improve regression safety and surface coverage in this pilot, while the g
 ## Quick Start
 
 ```bash
-git clone https://github.com/Hik289/skill-dreaming.git
+git clone https://github.com/xfab-xinyuansong/skill-dreaming.git
 cd skill-dreaming
 python3 -m venv .venv
 source .venv/bin/activate
@@ -141,6 +141,6 @@ Model inference and SWE-bench evaluation are separate, resource-intensive runs. 
 @software{skill_dreaming_2026,
   title = {Skill Dreaming: Aligning Repository Skills with a Stream of Pull Requests},
   year = {2026},
-  url = {https://github.com/Hik289/skill-dreaming}
+  url = {https://github.com/xfab-xinyuansong/skill-dreaming}
 }
 ```
