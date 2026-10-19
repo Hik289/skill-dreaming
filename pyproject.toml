@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-dreaming"
+version = "0.1.0"
+description = "Repository skill alignment and evolution from pull request evidence"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["anthropic>=0.40,<1"]
+
+[project.optional-dependencies]
+benchmark = ["mini-swe-agent==2.4.6", "swebench"]
+
+[project.scripts]
+skill-dream = "skill_dream.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["skill_dream*"]

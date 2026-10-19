@@ -1,0 +1,17 @@
+{
+  "model": {
+    "model_name": "anthropic/YOUR_MODEL_ID",
+    "model_kwargs": {}
+  },
+  "environment": {
+    "cwd": "/testbed",
+    "timeout": 180,
+    "pull_timeout": 1800
+  },
+  "agent": {
+    "system_template": "You are a software engineer working in a repository. Use one bash command per response in a bash code block. Inspect the repository, implement the requested change, and run relevant tests. To finish, output a bash command starting with echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT followed by a command that prints the final unified git diff. The final diff is the submission.",
+    "instance_template": "Implement the following task in the checked-out repository:\n{{task}}",
+    "step_limit": 100,
+    "cost_limit": 3.0
+  }
+}

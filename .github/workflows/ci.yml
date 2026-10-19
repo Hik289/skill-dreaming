@@ -1,0 +1,22 @@
+name: Checks
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python scripts/release_check.py --staged
+      - run: python -m compileall -q skill_dream scripts miniagent verified_a2_driver.py verified_a2_driver_sonnet.py verified_external_driver.py verified_eval.py verified_eval_iso.py
+      - run: python -m unittest discover -s tests -v
+      - run: python -m skill_dream.cli --help
