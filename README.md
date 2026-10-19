@@ -14,7 +14,7 @@
 
 </div>
 
-![Skill streaming, Skills dreaming: a PR stream generates and revises persistent skills that extend and maintain an evolving repository](assets/main_figure_streaming_v2.png)
+![Skill streaming, Skills dreaming: a PR stream generates and revises persistent skills that extend and maintain an evolving repository](assets/main_figure_streaming_cloud.png)
 
 **PRs teach skills. Skills extend and maintain the repository.** Each new round combines the existing repository, available PR evidence, and previous skills to generate or revise the next skill set. Reused skills carry forward, new skills support new features, and obsolete rules can be superseded.
 
@@ -34,6 +34,8 @@ Skill Dreaming turns that evidence into a persistent, repository-specific skill 
 
 The intended sequential flow is:
 
+![Sequential evidence-to-skill-to-repository pipeline with feature implementation and maintenance](assets/method_pipeline.png)
+
 ```text
 Repository + feature request
   -> retrieve / repair / synthesize PR evidence
@@ -46,6 +48,8 @@ Repository + feature request
 
 <details>
 <summary>Earlier pipeline illustration, preserved</summary>
+
+![Earlier streaming illustration, preserved](assets/main_figure_streaming_v2.png)
 
 ![Earlier Skill Dreaming pipeline and skill graph illustration](assets/main_figure.png)
 
@@ -63,8 +67,12 @@ The following measurements come from the corrected experiment ledger. They are *
 
 | Benchmark | Target tasks | Base resolved | Skill Dreaming resolved | Difference | Paired exact McNemar p |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| SWE-bench Pro, 3 repositories | 100 | 79/100 (0.790) | **88/100 (0.880)** | **+9.0 pp** | 0.0117 |
-| SWE-bench Verified, 12 repositories | 101 | **93/101 (0.921)** | 91/101 (0.901) | -2.0 pp | 0.625 |
+| SWE-bench Pro, 3 repositories | 100 | 79/100 (0.790) | **88/100 (0.880)** | **+9.0%** | 0.0117 |
+| SWE-bench Verified, 12 repositories | 101 | **93/101 (0.921)** | 91/101 (0.901) | -2.0% | 0.625 |
+
+Differences with a percent sign are absolute differences between rates expressed in percent: `100 * (full_rate - base_rate)`, not relative growth divided by the base rate.
+
+![Selected benchmark resolved rates for base and skill-assisted runs](assets/results/core_mechanism.png)
 
 Both rows use the experiment ledger's **Opus-5.5** backbone label. Provider model IDs are configurable; that label should not be treated as a provider ID. Pro and Verified contain different instances. Their contrast motivates further study of agent strength, evidence quality, and remaining task difficulty; it does not establish a causal saturation threshold.
 

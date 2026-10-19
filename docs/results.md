@@ -9,7 +9,7 @@ The experiment label **Opus-5.5** is retained verbatim. Configure a valid model 
 | Metric | Definition and reporting rule |
 | --- | --- |
 | Official resolved rate | Number of instances marked `resolved=true` by the benchmark's official harness divided by the evaluated target count. Report unresolved, errored, and missing-report counts separately. The headline Verified table has 101/101 reports and zero reported harness errors. |
-| Resolved difference | Full resolved rate minus base resolved rate on the same task set; multiply by 100 to express percentage points. |
+| Resolved difference | Full resolved rate minus base resolved rate on the same task set. When displayed with `%`, compute `100 * (full_rate - base_rate)`; this is an absolute rate difference, not relative growth. |
 | Paired significance | Two-sided exact McNemar/binomial test using only base-only and full-only successes. Seed uncertainty and benchmark-subset uncertainty are not captured by this test. |
 | Existing tests pass | For the corrected click pilot, no new failures relative to the base test result. This is regression safety, not evidence that the requested feature works. The bundled basic replay instead uses its executed pytest result directly. |
 | Gold PR tests pass | All designated task-specific gold PR tests pass. click headline rates use 14 gold-evaluable PRs; four PRs without runnable gold tests are excluded and must be reported. |
@@ -32,15 +32,17 @@ Some ledger columns, including repository alignment, selection accuracy, skill p
 
 | Benchmark | Backbone label | n | Base resolved | Full resolved | Difference | Exact paired p |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| SWE-bench Pro, ansible/qutebrowser/openlibrary | Opus-5.5 | 100 | 79 (0.790) | 88 (0.880) | +9.0 pp | 0.0117 |
-| SWE-bench Verified, 12 repositories | Opus-5.5 | 101 | 93 (0.921) | 91 (0.901) | -2.0 pp | 0.625 |
-| SWE-bench Verified, historical run | Sonnet | 101 | 30 (0.297) | 27 (0.267) | -3.0 pp | Not supplied |
+| SWE-bench Pro, ansible/qutebrowser/openlibrary | Opus-5.5 | 100 | 79 (0.790) | 88 (0.880) | +9.0% | 0.0117 |
+| SWE-bench Verified, 12 repositories | Opus-5.5 | 101 | 93 (0.921) | 91 (0.901) | -2.0% | 0.625 |
+| SWE-bench Verified, historical run | Sonnet | 101 | 30 (0.297) | 27 (0.267) | -3.0% | Not supplied |
 
 Pro has 10 full-only versus one base-only success. Verified at Opus has 90 shared successes, three base-only successes, one full-only success, and seven shared failures. These are different benchmark instances. The comparison is compatible with several explanations, including headroom, evidence quality, retrieval fit, and task mix; it does not isolate those explanations causally.
 
 The released A2 benchmark drivers use **dense cosine top-8 retrieval with threshold 0.20**, not the click hybrid retriever. Benchmark-specific raw trajectories and exact split files are absent.
 
 ### External Adapters on Verified
+
+![Resolved counts for the local external-method adapters on the selected Verified subset](../assets/results/external_comparison.png)
 
 | Method | Resolved / 101 | Rate | Difference in resolved count vs base |
 | --- | ---: | ---: | ---: |
@@ -194,6 +196,10 @@ This experiment forms a separate repository-specific skill set for each reposito
 
 ### A2 Pilot and Candidate Budget
 
+![Matched candidate budgets across black and httpx](../assets/results/exp10_k_decoupling.png)
+
+![Descriptive absolute rate differences across benchmark and repository settings](../assets/results/boundary_condition.png)
+
 15 PRs per repository, one seed, matched base/full K.
 
 | Repository | K | Base task-success proxy | Full task-success proxy | Difference |
@@ -222,4 +228,4 @@ black/httpx's earlier keyword rows are superseded for A2 analysis by the budget 
 
 ## Interpreting the Evidence
 
-The reported Pro subset improves by nine percentage points. Verified at the same backbone label declines by two points, and external adapters cluster around the base result. The click pilot separates improvements in regression safety and category coverage from poorer gold-test performance. Stale-evidence filtering helps one small outdated-evidence split but can hurt clean-evidence ablations. Larger task streams, multiple seeds, complete traces, labeled maintenance checks, and faithful external-method runs remain necessary to substantiate broader claims.
+The reported Pro subset has an absolute resolved-rate increase of 9.0% (79.0% to 88.0%). Verified at the same backbone label has an absolute decrease of 2.0%, and external adapters cluster around the base result. The click pilot separates improvements in regression safety and category coverage from poorer gold-test performance. Stale-evidence filtering helps one small outdated-evidence split but can hurt clean-evidence ablations. Larger task streams, multiple seeds, complete traces, labeled maintenance checks, and faithful external-method runs remain necessary to substantiate broader claims.
