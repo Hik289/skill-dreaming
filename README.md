@@ -4,8 +4,6 @@ Python tooling for repository-specific skills and chronological pull-request rep
 
 [![Checks](https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml/badge.svg)](https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml)
 
-[Running the code](docs/reproduction.md) | [Primary repository](https://github.com/Hik289/skill-dreaming) | [Mirror](https://github.com/xfab-xinyuansong/skill-dreaming)
-
 ## Install
 
 Python 3.10 or later and Git are required.
