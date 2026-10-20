@@ -9,6 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 IGNORED = {'.git', '.venv', '__pycache__', '.pytest_cache', 'workspace', 'build', 'dist'}
+PUBLICATION_DIRECTORIES = {'paper', 'papers', 'manuscript', 'arxiv', 'overleaf', 'assets'}
+PUBLICATION_SUFFIXES = {'.pdf', '.tex', '.bib', '.cls', '.bst', '.sty'}
+PUBLICATION_DOCUMENTS = {'docs/method.md', 'docs/results.md'}
 PATTERNS = {
     'private_key': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
     'provider_token': re.compile(r'\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[A-Z0-9]{16})\b'),
@@ -26,11 +29,17 @@ def public_files(staged=False):
             and not any(part.endswith('.egg-info') for part in p.parts)]
 
 
-def check(paths, forbidden=()):
+def check(paths, forbidden=(), code_only=False):
     issues = []
     count = 0
     for path in sorted(paths):
-        relative = str(path.relative_to(ROOT))
+        relative_path = path.relative_to(ROOT)
+        relative = str(relative_path)
+        if code_only and (PUBLICATION_DIRECTORIES.intersection(part.casefold() for part in relative_path.parts)
+                          or path.suffix.casefold() in PUBLICATION_SUFFIXES
+                          or relative_path.as_posix().casefold() in PUBLICATION_DOCUMENTS
+                          or relative.casefold().endswith(('.zip', '.tar.gz'))):
+            issues.append({'file': relative, 'line': 0, 'kind': 'non_code_publication_artifact'})
         for word in forbidden:
             if word.casefold() in relative.casefold():
                 issues.append({'file': relative, 'line': 0, 'kind': 'forbidden_filename'})
@@ -82,7 +91,7 @@ def main():
     parser.add_argument('--staged', action='store_true')
     parser.add_argument('--forbid', action='append', default=[])
     args = parser.parse_args()
-    result = check(public_files(args.staged), args.forbid)
+    result = check(public_files(args.staged), args.forbid, code_only=args.staged)
     print(json.dumps(result, indent=2))
     raise SystemExit(0 if result['passed'] else 1)
 

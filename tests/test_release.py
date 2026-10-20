@@ -1,7 +1,9 @@
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
+from scripts import release_check
 from skill_dream.embedding import embed_batch
 from skill_dream.evaluator import surface_f1
 from skill_dream.leakguard import LeakGuard, LeakViolation
@@ -19,6 +21,28 @@ def make_skill(name, date=None, available_at=None):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_code_only_release_rejects_manuscripts_and_archives(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            paths = [root / 'paper' / 'main.tex', root / 'overleaf.zip', root / 'assets' / 'prompt.txt']
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('Local publication material')
+            with patch.object(release_check, 'ROOT', root):
+                result = release_check.check(paths, code_only=True)
+            self.assertFalse(result['passed'])
+            self.assertEqual(sum(issue['kind'] == 'non_code_publication_artifact' for issue in result['issues']), 3)
+
+    def test_code_only_release_allows_source_and_usage_instructions(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            source, readme = root / 'module.py', root / 'README.md'
+            source.write_text('value = 1\n')
+            readme.write_text('Installation and usage\n')
+            with patch.object(release_check, 'ROOT', root):
+                result = release_check.check([source, readme], code_only=True)
+            self.assertTrue(result['passed'], result['issues'])
+
     def test_chronological_retrieval_rejects_unknown_same_and_future_evidence(self):
         with tempfile.TemporaryDirectory() as root:
             store = SkillStore(root)

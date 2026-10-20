@@ -85,9 +85,9 @@ workspace/benchmark/
     qutebrowser__qutebrowser.git/
 ```
 
-Only prepare the assets needed for the chosen benchmark. `swebench_verified.jsonl` contains the official dataset rows; the driver needs at least `instance_id`, `repo`, `problem_statement`, and `created_at`. The Pro driver additionally uses `dockerhub_tag`, per-instance dates, and source commit dates from the repository mirrors. Skill JSON files follow the schema in [Method](method.md). The pool contents, exact target split, and original model configuration are not included in this release.
+Only prepare the assets needed for the chosen benchmark. `swebench_verified.jsonl` contains the official dataset rows; the driver needs at least `instance_id`, `repo`, `problem_statement`, and `created_at`. The Pro driver additionally uses `dockerhub_tag`, per-instance dates, and source commit dates from the repository mirrors. Skill JSON files follow the [Skill dataclass](../skill_dream/skill_store.py). The pool contents, target split, and model configuration must be prepared separately.
 
-`verified_main100.json` is a historical filename; it must contain the actual evaluation IDs for your run, not an assumed count of 100. The corrected historical Verified result has 101 targets. External memory adapters exclude these IDs from their evidence collection.
+`verified_main100.json` is a historical filename; it must contain the actual evaluation IDs for your run. Do not infer the number of targets from the filename. External memory adapters exclude these IDs from their evidence collection.
 
 After setting the local environment, generate both conditions on the same target IDs:
 
@@ -131,4 +131,4 @@ The driver writes `miniagent/rebuild_preds_a2_local.jsonl`. Evaluate Pro predict
 
 `scripts/legacy/` preserves the supplied pool builders, record analyzers, diagnostic scripts, and rerun utilities. They operate on historical file naming conventions, often relative to the current working directory. Several require `methods`, `sd_swebench_adapter`, or `sd_v2`, which were absent from the supplied package. Pool builders look for the `methods` adapter under the configured benchmark root's `adapter` directory. They are not advertised as standalone supported commands.
 
-The click hybrid retrieval module, complete best-of-K runner, official Trace2Skill integration, and the experiment-specific relation/evidence-source runners are not bundled. No replacement implementation is silently substituted for those experiments. [Results](results.md) records the available numbers and the limits of their reproducibility.
+The click hybrid retrieval module, complete best-of-K runner, official Trace2Skill integration, and the experiment-specific relation/evidence-source runners are not bundled. No replacement implementation is silently substituted for these components. Runtime outputs, datasets, prebuilt pools, and result reports must remain local and are not part of this source distribution.
