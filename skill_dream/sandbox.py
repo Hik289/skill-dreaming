@@ -38,17 +38,26 @@ class Sandbox:
             shutil.rmtree(self.path, ignore_errors=True)
 
     def write_file(self, relpath: str, content: str):
-        full = os.path.join(self.path, relpath)
+        full = self._safe_path(relpath)
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, 'w') as f:
             f.write(content)
 
     def read_file(self, relpath: str) -> Optional[str]:
-        full = os.path.join(self.path, relpath)
+        full = self._safe_path(relpath)
         if not os.path.exists(full):
             return None
         with open(full) as f:
             return f.read()
+
+    def _safe_path(self, relpath):
+        root = os.path.realpath(self.path)
+        full = os.path.realpath(os.path.join(root, relpath))
+        if os.path.isabs(relpath) or '..' in relpath.replace('\\', '/').split('/') or '.git' in relpath.split('/'):
+            raise ValueError('patch path must stay within the worktree')
+        if os.path.commonpath([root, full]) != root:
+            raise ValueError('patch path escapes the worktree')
+        return full
 
     def apply_patch(self, diff_text: str) -> tuple[bool, str]:
         if not diff_text.strip():
@@ -63,11 +72,12 @@ class Sandbox:
                 os.remove(pf)
                 return (False, f'apply --check failed: {chk.stderr.strip()[:400]}')
         ap = _run(['git', 'apply', '--whitespace=nowarn', pf], cwd=self.path)
-        os.remove(pf)
         if ap.returncode != 0:
             ap = _run(['git', 'apply', '--3way', pf], cwd=self.path)
             if ap.returncode != 0:
+                os.remove(pf)
                 return (False, f'apply failed: {ap.stderr.strip()[:400]}')
+        os.remove(pf)
         return (True, 'applied cleanly')
 
     def pip_install_e(self, python: str, timeout=900) -> tuple[bool, str]:
@@ -101,7 +111,8 @@ def _parse_pytest(out: str, returncode: int) -> TestResult:
         failed = int(m.group(1))
     for m in re.finditer('(\\d+) error', out):
         errors = int(m.group(1))
-    ok = returncode == 0 and failed == 0 and (errors == 0)
+    collected = max(collected, passed + failed + errors)
+    ok = returncode == 0 and passed > 0 and failed == 0 and (errors == 0)
     tr = TestResult(passed=passed, failed=failed, errors=errors, collected=collected, ok=ok, raw_tail=out[-1500:])
     fails = set()
     for m in re.finditer('^(?:FAILED|ERROR)\\s+(\\S+)', out, re.M):

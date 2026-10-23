@@ -137,3 +137,28 @@ def localize_base_files(repo: str, base: str, task: str, max_files: int=6) -> li
         terms = set(re.findall(r'[a-z][a-z0-9_]{2,}', path.lower()))
         return (-len(keywords & terms), path.startswith(('tests/', 'docs/')), path)
     return sorted(files, key=score)[:max_files]
+
+def index_history(repo: str, ref='HEAD', before_date=None, limit=200):
+    from .skill_store import _timestamp
+    if limit < 1:
+        raise ValueError('history limit must be positive')
+    cutoff = _timestamp(before_date) if before_date else None
+    if before_date and cutoff is None:
+        raise ValueError('before_date must be an ISO date or timestamp')
+    command = ['git', '-C', repo, 'log', '--first-parent', '-z', '--format=%H%x00%P%x00%cI%x00%s', ref, '--']
+    raw = subprocess.run(command, capture_output=True, text=True, check=True).stdout
+    parts = raw.strip('\x00').split('\x00') if raw else []
+    rows = []
+    for i in range(0, len(parts), 4):
+        sha, parents, date, subject = parts[i:i + 4]
+        if not parents or (cutoff and _timestamp(date) >= cutoff):
+            continue
+        number = re.search(r'\(#(\d+)\)\s*$', subject)
+        changed = _git(repo, 'diff', '--name-only', parents.split()[0], sha, '--').splitlines()
+        rows.append({'pr': int(number.group(1)) if number else 'commit:' + sha[:12],
+                     'sha': sha, 'base': parents.split()[0], 'date': date, 'available_at': date,
+                     'subject': subject, 'kind': 'segment', 'source': 'first_parent_commit',
+                     'status': 'accepted', 'files': changed})
+        if len(rows) == limit:
+            break
+    return sorted(rows, key=lambda row: _timestamp(row['date']))

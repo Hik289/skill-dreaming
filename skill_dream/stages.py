@@ -7,16 +7,22 @@ from .pr_loader import get_file_at
 def diagnose(llm: LLMClient, repo_summary: str) -> list:
     return [{'note': 'MVP uses replay PR subjects as tasks_t'}]
 
-def detect_prs(llm: LLMClient, task: str, pr_index: list, top_k: int=5) -> dict:
+def detect_prs(llm: LLMClient, task: str, pr_index: list, top_k: int=5, skills=()) -> dict:
     cand_lines = []
-    for r in pr_index[:60]:
+    keywords = set(re.findall(r'[a-z_]{3,}', task.lower()))
+    ranked = sorted(pr_index, key=lambda row: (len(keywords & set(re.findall(r'[a-z_]{3,}', (row['subject'] + ' ' + ' '.join(row.get('files', []))).lower()))), row['date']), reverse=True)
+    for r in ranked[:60]:
         cand_lines.append(f"PR#{r['pr']} [{r.get('intent', '?')}] {r['subject'][:90]}")
+        cand_lines.append(json.dumps({'files': r.get('files', [])[:12], 'reviews': r.get('reviews', []), 'ci': r.get('ci', [])})[:1000])
     prompt = f'你在为一个代码仓库任务检测相关的历史 PR 证据。\n\n当前任务: {task}\n\n历史 PR 列表 (只含标题, 均早于当前任务):\n{chr(10).join(cand_lines)}\n\n请判断哪些历史 PR 与当前任务相关, 并给每个相关 PR 一个类别。\n只返回 JSON: {{"detected": [{{"pr": <int>, "relevance": <0-1>, "class": "usable|repairable|outdated|irrelevant"}}], "task_type": "<provider_integration|feature_addition|bugfix|refactor|...>", "keywords": ["..."]}}\n最多返回 {top_k} 个最相关的。'
+    prompt += '\nAlso permit class unsafe for security-incompatible records. Preserve supplied PR identifiers, including string commit identifiers.\n' + _render_skills(list(skills))
     try:
         out = llm.complete_json(prompt, role='detect', model=MODEL_MAIN, max_tokens=1024)
     except Exception:
         out = {'detected': [], 'task_type': 'feature_addition', 'keywords': task.lower().split()[:6]}
     out.setdefault('detected', [])
+    known = {str(row['pr']) for row in ranked[:60]}
+    out['detected'] = [item for item in out['detected'] if isinstance(item, dict) and str(item.get('pr')) in known and item.get('class') in {'usable', 'repairable', 'outdated', 'irrelevant', 'unsafe'}][:top_k]
     out.setdefault('task_type', 'feature_addition')
     out.setdefault('keywords', [w for w in re.findall('[a-z_]{3,}', task.lower())][:6])
     return out
@@ -48,7 +54,11 @@ def verify_and_select(candidates: list, task_type: str) -> tuple:
     return (ranked[0], ranked[1:])
 
 def generate_skills(llm: LLMClient, task: str, selected_evidence: dict, rejected_evidence: list, gold_diff: str=None, gold_surfaces: set=None, model: str=None) -> list:
-    ev_desc = json.dumps(selected_evidence, ensure_ascii=False)[:1500]
+    summary = {key: value for key, value in selected_evidence.items() if key not in {'patch', 'checks'}}
+    ev_desc = json.dumps(summary, ensure_ascii=False)[:4000]
+    if selected_evidence.get('patch'):
+        ev_desc += '\nExecution-verified candidate change:\n' + json.dumps(selected_evidence['patch'], ensure_ascii=False)[:8000]
+        ev_desc += '\nVerification:\n' + json.dumps(selected_evidence.get('checks', {}), ensure_ascii=False)[:2000]
     diff_ctx = ''
     if gold_diff:
         diff_ctx = f'\n\naccepted PR diff (证据, 用于蒸馏 skill, 非复制):\n{gold_diff[:4000]}'
@@ -66,28 +76,74 @@ def generate_skills(llm: LLMClient, task: str, selected_evidence: dict, rejected
             neg_ctx = '\n\n负向证据 (被拒绝的 PR / 弱候选 / maintainer 否定的做法 —— 务必从中提炼 negative_constraints, 让 skill 明确避免这些):\n' + '\n'.join(neg_items)
     prompt = f"""你在从验证过的 PR 证据中蒸馏可执行的 repository-specific skill。\n不是压缩 diff, 而是提取: 实现决策 / 修改拓扑 / 维护面要求 / 失败模式, 写成可触发可复用的规则。\n{('如果提供了负向证据, 必须把它转成具体的 negative_constraints (不要做 X / 避免 Y), 让未来任务规避这些被拒模式。' if rejected_evidence else '')}\n\n任务类型: {task}\n选中证据: {ev_desc}{surf_ctx}{diff_ctx}{neg_ctx}\n\n产出 1-2 个可执行 skill。只返回 JSON:\n{{"skills": [{{\n  "name": "kebab-case-name",\n  "trigger": {{"task_type": "...", "keywords": ["..."], "repository_surfaces": ["..."]}},\n  "procedure": ["定位 ...", "复用 ...", "增加 ..."],\n  "negative_constraints": ["不要 ..."],\n  "required_surfaces": ["code","tests","changelog"],\n  "validation": ["run existing tests", "..."],\n  "category": "feature-implementation|maintenance-completion|negative-constraints|...",\n  "confidence": 0.6\n}}]}}"""
     try:
+        prompt += ('\nUse a supported skill family: pr-detection, pr-construction, feature-implementation, '
+                   'maintenance-completion, or skill-evolution. Keep procedures grounded in the supplied records. '
+                   'If explicit records establish replacement of a named prior skill, include '
+                   '"relations": {"supersedes": "prior-name"}; otherwise omit replacement claims. '
+                   'Do not turn a weak plan ranking into a verified result.')
         out = llm.complete_json(prompt, role='skill_synth', model=model or MODEL_HEAVY, max_tokens=2048)
         skills = out.get('skills', [])
     except Exception:
         skills = []
     result = []
     for s in skills:
-        if 'name' not in s or 'trigger' not in s:
+        if not isinstance(s, dict) or 'name' not in s or 'trigger' not in s:
             continue
-        result.append(Skill(name=s['name'], trigger=s.get('trigger', {}), procedure=s.get('procedure', []), negative_constraints=s.get('negative_constraints', []), required_surfaces=s.get('required_surfaces', []), validation=s.get('validation', []), category=s.get('category', 'feature-implementation'), confidence=float(s.get('confidence', 0.6)), positive_evidence=[selected_evidence.get('pr')] if selected_evidence.get('pr') else [], negative_evidence=[r.get('pr') if isinstance(r, dict) else None for r in rejected_evidence or [] if isinstance(r, dict) and r.get('pr')]))
+        try:
+            candidate = Skill(name=s['name'], trigger=s.get('trigger', {}), procedure=s.get('procedure', []), negative_constraints=s.get('negative_constraints', []), required_surfaces=s.get('required_surfaces', []), validation=s.get('validation', []), category=s.get('category', 'feature-implementation'), confidence=float(s.get('confidence', 0.6)), positive_evidence=[selected_evidence.get('pr')] if selected_evidence.get('pr') else [], negative_evidence=[r.get('pr') for r in rejected_evidence or [] if isinstance(r, dict) and r.get('pr')], review_evidence=selected_evidence.get('reviews', []), relations=s.get('relations', {}))
+        except (TypeError, ValueError):
+            continue
+        if candidate.procedure:
+            result.append(candidate)
     return result
 
 def decide_skill_ops(llm: LLMClient, new_skills: list, existing_names: list) -> list:
+    existing = {sk.name: sk for sk in existing_names if isinstance(sk, Skill)}
+    names = set(existing) if existing else set(existing_names)
+    decisions = {}
+    if existing and new_skills:
+        prompt = ('Align candidate skills with the active repository skill set. Return JSON '
+                  '{"operations": [{"name": "candidate name", "op": "ADD|UPDATE|SPECIALIZE|EXTEND|CONFLICT|SUPERSEDE|KEEP", '
+                  '"target": "existing name or null", "reason": "grounded explanation"}]}. '
+                  'UPDATE revises the same named skill; SPECIALIZE narrows a trigger; EXTEND adds a related procedure; '
+                  'CONFLICT retains incompatible alternatives; SUPERSEDE requires explicit replacement support, not merely similar keywords; '
+                  'KEEP means no useful new information. Prefer ADD if uncertain. Do not invent skill names.\n' +
+                  json.dumps({'existing': [s.to_dict() for s in existing.values()],
+                              'candidates': [s.to_dict() for s in new_skills]}, ensure_ascii=False))
+        try:
+            output = llm.complete_json(prompt, role='skill_alignment', model=MODEL_HEAVY, max_tokens=2048)
+            decisions = {d['name']: d for d in output.get('operations', []) if isinstance(d, dict) and d.get('reason')}
+        except Exception:
+            decisions = {}
     ops = []
     for sk in new_skills:
-        if sk.name in existing_names:
-            ops.append(('UPDATE', sk, None))
-        else:
-            ops.append(('ADD', sk, None))
+        fallback = 'UPDATE' if sk.name in names else 'ADD'
+        decision = decisions.get(sk.name, {})
+        op = str(decision.get('op', fallback)).upper()
+        target = decision.get('target')
+        if op in {'SPECIALIZE', 'EXTEND', 'CONFLICT', 'SUPERSEDE'}:
+            if target not in existing or target not in names or target == sk.name or sk.name in names:
+                op, target = fallback, None
+            elif op == 'SUPERSEDE':
+                old = existing[target]
+                explicit = sk.relations.get('supersedes') == target
+                newer = (sk.version_scope.get('date', '') > old.version_scope.get('date', ''))
+                if not explicit or not newer:
+                    op, target = 'CONFLICT', target
+        elif op not in {'ADD', 'UPDATE', 'KEEP'} or (op == 'KEEP' and sk.name not in names):
+            op, target = fallback, None
+        if op == 'UPDATE' and sk.name not in names:
+            op = 'ADD'
+        ops.append((op, sk, target))
+        if op != 'KEEP':
+            names.add(sk.name)
+        if op == 'SUPERSEDE':
+            names.discard(target)
     return ops
 
-def generate_patch(llm: LLMClient, task: str, base_context: str, skills: list, leakguard=None, model: str=MODEL_MAIN) -> dict:
-    skills_text = _render_skills(skills)
+def generate_patch(llm: LLMClient, task: str, base_context: str, skills: list, leakguard=None, model: str=MODEL_MAIN, max_skill_chars=12000) -> dict:
+    from .skill_context import pack_skills
+    skills_text, skills, injection = pack_skills(skills, max_skill_chars)
     full_context = task + base_context + skills_text
     if leakguard is not None:
         leakguard.assert_clean(full_context, where='generate_patch')
@@ -102,10 +158,11 @@ def generate_patch(llm: LLMClient, task: str, base_context: str, skills: list, l
         if nf.get('path') and nf.get('content') is not None:
             new_files[nf['path']] = nf['content']
     changed = sorted(set([e['path'] for e in edits]) | set(new_files.keys()))
-    return {'edits': edits, 'new_files': new_files, 'changed_files': changed, 'surfaces_addressed': out.get('surfaces_addressed', []), 'skills_used': [s.name for s in skills], 'rationale': out.get('rationale', '')}
+    return {'edits': edits, 'new_files': new_files, 'changed_files': changed, 'surfaces_addressed': out.get('surfaces_addressed', []), 'skills_used': [s.name for s in skills], 'rationale': out.get('rationale', ''), 'skill_injection': injection}
 
 def generate_patch_lineref(llm, task: str, base_context_numbered: str, skills: list, leakguard=None, model: str=MODEL_MAIN, seed: int=0) -> dict:
-    skills_text = _render_skills(skills)
+    from .skill_context import pack_skills
+    skills_text, skills, injection = pack_skills(skills)
     full_context = task + base_context_numbered + skills_text
     if leakguard is not None:
         leakguard.assert_clean(full_context, where='generate_patch_lineref')
@@ -145,18 +202,8 @@ def apply_edits_to_sandbox(sandbox, edits: list, new_files: dict) -> dict:
     return {'applied': applied, 'failed': failed}
 
 def _render_skills(skills: list) -> str:
-    if not skills:
-        return '(无可用 skill —— base agent 模式)'
-    lines = []
-    for sk in skills:
-        lines.append(f'### skill: {sk.name} (confidence={sk.confidence})')
-        lines.append(f'  trigger: {sk.trigger}')
-        lines.append(f'  procedure: {sk.procedure}')
-        if sk.negative_constraints:
-            lines.append(f'  negative_constraints: {sk.negative_constraints}')
-        if sk.required_surfaces:
-            lines.append(f'  required_surfaces: {sk.required_surfaces}')
-    return '\n'.join(lines)
+    from .skill_context import pack_skills
+    return pack_skills(skills)[0]
 
 def build_base_context(repo: str, base: str, hint_files: list, max_files: int=6) -> str:
     parts = []

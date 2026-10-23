@@ -6,7 +6,7 @@ from skill_dream.config import BENCHMARK_ROOT, AGENT_CONFIG
 SWE = str(BENCHMARK_ROOT)
 MINI = os.path.join(SWE, 'miniagent')
 sys.path.insert(0, os.path.join(SWE, 'adapter'))
-POOL = os.path.join(MINI, 'pro_related_nogold_opus55')
+POOL = os.environ.get('SD_PRO_SKILL_POOL') or os.path.join(MINI, 'pro_related_nogold')
 EMB_CACHE = os.path.join(MINI, 'skill_emb_cache')
 REPOS = {'ansible': 'ansible__ansible', 'openlibrary': 'internetarchive__openlibrary', 'qutebrowser': 'qutebrowser__qutebrowser'}
 BARE = {'ansible': os.path.join(SWE, 'repos_cache', 'ansible__ansible.git'), 'openlibrary': os.path.join(SWE, 'repos_cache', 'internetarchive__openlibrary.git'), 'qutebrowser': os.path.join(SWE, 'repos_cache', 'qutebrowser__qutebrowser.git')}
@@ -24,7 +24,7 @@ def sha_date(repo, sha):
         return _shacache[k]
     try:
         r = subprocess.run(['git', '-C', BARE[repo], 'show', '-s', '--format=%cI', sha], capture_output=True, text=True, timeout=30)
-        dt = r.stdout.strip()[:10] if r.returncode == 0 else None
+        dt = r.stdout.strip() if r.returncode == 0 else None
     except Exception:
         dt = None
     _shacache[k] = dt
@@ -47,7 +47,8 @@ def skill_embed_text(sk):
     return '  '.join(parts)[:8000]
 
 def cache_key(t):
-    return hashlib.sha1(t.encode('utf-8', 'replace')).hexdigest()
+    identity = os.environ.get('SD_EMBEDDING_ENDPOINT', '') + os.environ.get('SD_EMBEDDING_MODEL', '')
+    return hashlib.sha256((identity + '\n' + t).encode('utf-8', 'replace')).hexdigest()
 
 def embed_cached_one(t):
     cp = os.path.join(EMB_CACHE, cache_key(t) + '.json')
@@ -73,7 +74,8 @@ def retrieve_top8(problem, skills, top_k=8, min_cos=0.2):
         c = cosine(q, v)
         scored.append((c, sk))
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [sk for (c, sk) in scored if c >= min_cos][:top_k]
+    from skill_dream.skill_context import compatible_subset
+    return [sk.to_dict() for sk in compatible_subset([sk for c, sk in scored if c >= min_cos], top_k)]
 SKILL_PREAMBLE = "The following engineering patterns were distilled from this repository's own merged history of fixing similar issues. They encode where relevant code tends to live and how fixes in this codebase are structured. Treat them as strong priors from a senior maintainer of THIS repo:\n- Early in your exploration, open and read the files/modules these patterns point to.\n- Prefer the conventions they describe unless the code clearly contradicts them.\n- Heed every listed pitfall; they mark mistakes previously made on this repo.\n"
 
 def render_skills(skills):
@@ -101,17 +103,26 @@ def build_task(inst, method):
     if method == 'none':
         return (ps, 0)
     repo = repo_of(inst['instance_id'])
-    tdate = str(DATES.get(inst['instance_id'], ''))[:10]
+    tdate = str(DATES.get(inst['instance_id'], ''))
     skills = load_pool(repo)
     safe = []
+    from skill_dream.skill_context import eligible, pack_skills
+    from skill_dream.skill_store import _timestamp
     for sk in skills:
-        ev = (sk.get('positive_evidence') or [None])[0]
-        ed = sha_date(repo, ev)
-        if ed and tdate and (ed < tdate):
-            safe.append(sk)
+        sources = sk.get('positive_evidence') or []
+        dates = [_timestamp(sha_date(repo, source)) for source in sources if isinstance(source, str)]
+        cutoff = _timestamp(tdate)
+        if not dates or len(dates) != len(sources) or cutoff is None or any(d is None or d >= cutoff for d in dates):
+            continue
+        candidate = dict(sk)
+        candidate['version_scope'] = dict(sk.get('version_scope') or {})
+        candidate['version_scope']['available_at'] = max(dates).isoformat()
+        candidate['version_scope'].setdefault('date', max(dates).isoformat())
+        if eligible(candidate, tdate, [inst['instance_id'], inst.get('base_commit')], BARE[repo], inst.get('base_commit')):
+            safe.append(candidate)
     top = retrieve_top8(ps, safe, top_k=8, min_cos=0.2)
-    block = render_skills(top)
-    return (ps + ('\n\n' + block if block else ''), len(top))
+    block, included, _ = pack_skills(top, int(os.environ.get('SD_SKILL_CONTEXT_CHARS', '12000')))
+    return (ps + ('\n\n' + block if block else ''), len(included))
 
 def run_one(iid, method, tag):
     from minisweagent.environments.docker import DockerEnvironment

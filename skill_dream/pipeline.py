@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, json, time, subprocess
+import os, json, time, subprocess, re
 from dataclasses import dataclass, field
 from typing import Optional
 from .llm import LLMClient, TokenMeter, MODEL_MAIN
@@ -22,6 +22,24 @@ class RunConfig:
     test_targets: Optional[list] = None
     ignore_tests: Optional[list] = None
     apply_mode: str = 'robust'
+    max_active_skills: int = 256
+    retrieve_k: int = 8
+    retrieval_mode: str = 'lexical'
+    skill_context_chars: int = 12000
+    verified_learning: bool = False
+    learning_candidates: int = 3
+    repair_attempts: int = 1
+    check_commands: list = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.max_active_skills < 1 or self.retrieve_k < 0 or self.skill_context_chars < 0:
+            raise ValueError('invalid skill pool or context budget')
+        if self.learning_candidates < 1 or self.repair_attempts < 0:
+            raise ValueError('invalid candidate or repair budget')
+        if self.verified_learning and not self.run_existing_tests:
+            raise ValueError('verified learning requires tests')
+        if any(not isinstance(command, list) or not command for command in self.check_commands):
+            raise ValueError('check commands must be nonempty argument lists')
 
 class Pipeline:
 
@@ -29,17 +47,19 @@ class Pipeline:
         self.cfg = cfg
         self.meter = TokenMeter()
         self.llm = LLMClient(self.meter)
-        self.store = SkillStore(cfg.skills_root)
+        self.store = SkillStore(cfg.skills_root, max_active=cfg.max_active_skills)
         self.store.load()
         os.makedirs(cfg.workdir, exist_ok=True)
 
     def run_pr(self, pr_index_row: dict, pr_history: list, leakguard: LeakGuard) -> dict:
+        started = time.perf_counter()
+        token_start = self.meter.snapshot()['total_tokens']
         cfg = self.cfg
         sha = pr_index_row['sha']
         base = pr_index_row['base']
         kind = pr_index_row.get('kind', 'squash')
         task = pr_index_row['subject']
-        run_id = f"pr_{pr_index_row['pr']}_{int(time.time())}"
+        run_id = f"pr_{pr_index_row['pr']}_{time.time_ns()}"
         rundir = os.path.join(cfg.workdir, run_id)
         os.makedirs(rundir, exist_ok=True)
         record = {'pr': pr_index_row['pr'], 'sha': sha, 'base': base, 'task': task, 'run_id': run_id, 'steps': {}}
@@ -48,8 +68,10 @@ class Pipeline:
         probed_gold_diff = leakguard.inject(gold_diff)
         record['gold'] = {'files': gold.files, 'surfaces': gold.surfaces, 'symbols': gold.symbols, 'n_files': gold.n_files}
         record['steps']['1_diagnose'] = {'task': task}
-        hist = [r for r in pr_history if r['date'] < pr_index_row['date']]
-        det = stages.detect_prs(self.llm, task, hist)
+        from .workflow import historical_rows
+        hist = historical_rows(pr_history, pr_index_row)
+        detection_skills = self._retrieve(pr_index_row, 'pr-detection', re.findall(r'[a-z_]{3,}', task.lower())) if cfg.use_skills else []
+        det = stages.detect_prs(self.llm, task, hist, skills=detection_skills)
         task_type = det.get('task_type', 'feature_addition')
         keywords = det.get('keywords', [])
         record['steps']['2_detect'] = det
@@ -62,20 +84,31 @@ class Pipeline:
         record['steps']['4_5_verify_select'] = {'selected': selected, 'n_rejected': len(rejected)}
         selected_evidence = {'pr': pr_index_row['pr'], 'task_type': task_type, 'surfaces': list(gold.surfaces.keys()), 'plan': selected}
         if cfg.use_skills:
-            avail_skills = self.store.retrieve(task_type, keywords, top_k=5, before_date=pr_index_row['date'])
+            avail_skills = self._retrieve(pr_index_row, task_type, keywords)
         else:
             avail_skills = []
         gen_base_ctx = stages.build_base_context(cfg.repo, base, base_files, max_files=6)
         leakguard.assert_clean(gen_base_ctx, where='gen_base_ctx')
-        gen = stages.generate_patch(self.llm, task, gen_base_ctx, avail_skills, leakguard=leakguard, model=cfg.model)
+        if cfg.verified_learning:
+            from .workflow import prepare, generate_verified
+            avail_skills, learning = prepare(self, pr_index_row, hist, det, gen_base_ctx,
+                                             avail_skills, run_id, leakguard)
+            record['verified_learning'] = learning
+            gen, checks = generate_verified(self, task + '\nMaintenance plan:\n' + json.dumps(learning['maintenance']),
+                                             gen_base_ctx, avail_skills if cfg.use_skills else [],
+                                             pr_index_row, run_id + '_final', learning['required_surfaces'], leakguard)
+            record['final_verification'] = checks
+        else:
+            gen = stages.generate_patch(self.llm, task, gen_base_ctx, avail_skills, leakguard=leakguard, model=cfg.model, max_skill_chars=cfg.skill_context_chars)
+        record['skill_injection'] = gen.get('skill_injection', {})
         record['steps']['8_generate_patch'] = {'skills_used': gen.get('skills_used', []), 'changed_files': gen.get('changed_files', []), 'surfaces_addressed': gen.get('surfaces_addressed', []), 'error': gen.get('error')}
         eval_res = self._evaluate(gold, gen, base, run_id)
         record['steps']['9_evaluate'] = eval_res.to_dict()
         new_skills = stages.generate_skills(self.llm, task, selected_evidence, rejected, gold_diff=gold_diff, gold_surfaces=gold.gold_surfaces())
         for skill in new_skills:
-            skill.version_scope.update({'date': pr_index_row['date'], 'source_id': sha, 'base_commit': base})
+            skill.version_scope.update({'date': pr_index_row['date'], 'available_at': pr_index_row.get('available_at', pr_index_row['date']), 'source_id': sha, 'base_commit': base})
         record['steps']['6_generate_skills'] = {'n_new_skills': len(new_skills), 'names': [s.name for s in new_skills]}
-        ops = stages.decide_skill_ops(self.llm, new_skills, list(self.store.skills.keys()))
+        ops = stages.decide_skill_ops(self.llm, new_skills, list(self.store.skills.values()))
         for (op, sk, target) in ops:
             self.store.apply_op(op, sk, target=target, note=f"from PR#{pr_index_row['pr']}")
         for name in gen.get('skills_used', []):
@@ -83,6 +116,12 @@ class Pipeline:
         self.store.save()
         record['steps']['7_update_skills'] = {'ops': [(o, s.name, t) for (o, s, t) in ops], 'active_skills': len(self.store.skills)}
         record['outcome'] = {'task_success': eval_res.task_success, 'patch_applies_clean': eval_res.patch_applies_clean, 'existing_tests_pass': eval_res.existing_tests_pass, 'surface_f1': eval_res.surface.f1, 'hard_constraints_ok': eval_res.hard_constraints_ok, 'tokens': self.meter.snapshot()}
+        record['outcome']['accepted_locally'] = (record['final_verification'][-1]['accepted'] and eval_res.task_success
+                                                if cfg.verified_learning else eval_res.task_success)
+        record['final_patch'] = gen
+        record['repository_transition'] = 'recorded_base_replay; generated patch not merged automatically'
+        record['outcome']['wall_time_seconds'] = time.perf_counter() - started
+        record['outcome']['task_tokens'] = self.meter.snapshot()['total_tokens'] - token_start
         record['leakguard'] = leakguard.report()
         with open(os.path.join(rundir, 'record.json'), 'w') as f:
             json.dump(record, f, indent=2)
@@ -95,7 +134,7 @@ class Pipeline:
         kind = pr_index_row.get('kind', 'squash')
         task = pr_index_row['subject']
         leakguard = LeakGuard()
-        run_id = f"paired_pr_{pr_index_row['pr']}_{int(time.time())}"
+        run_id = f"paired_pr_{pr_index_row['pr']}_{time.time_ns()}"
         rundir = os.path.join(cfg.workdir, run_id)
         os.makedirs(rundir, exist_ok=True)
         rec = {'pr': pr_index_row['pr'], 'sha': sha, 'base': base, 'task': task, 'run_id': run_id}
@@ -104,20 +143,22 @@ class Pipeline:
         leakguard.inject(gold_diff)
         pr_test_files = [f for f in gold.files if f.startswith('tests/') and f.endswith('.py')]
         rec['gold'] = {'files': gold.files, 'surfaces': gold.surfaces, 'pr_touched_test_files': pr_test_files, 'n_files': gold.n_files}
-        hist = [r for r in pr_history if r['date'] < pr_index_row['date']]
-        det = stages.detect_prs(self.llm, task, hist)
+        from .workflow import historical_rows
+        hist = historical_rows(pr_history, pr_index_row)
+        detection_skills = self._retrieve(pr_index_row, 'pr-detection', re.findall(r'[a-z_]{3,}', task.lower())) if cfg.use_skills else []
+        det = stages.detect_prs(self.llm, task, hist, skills=detection_skills)
         task_type = det.get('task_type', 'feature_addition')
         keywords = det.get('keywords', [])
         rec['detect'] = {'task_type': task_type, 'keywords': keywords, 'n_detected': len(det.get('detected', []))}
         base_files = localize_base_files(cfg.repo, base, task, max_files=6)
         gen_base_ctx = stages.build_base_context(cfg.repo, base, base_files, max_files=6)
         leakguard.assert_clean(gen_base_ctx, where='gen_base_ctx')
-        avail_skills = self.store.retrieve(task_type, keywords, top_k=5, before_date=pr_index_row['date'])
+        avail_skills = self._retrieve(pr_index_row, task_type, keywords)
         rec['skills_available'] = [s.name for s in avail_skills]
         legs = {}
         for (leg_name, skills) in [('skill_guided', avail_skills), ('base_agent', [])]:
             tok0 = self.meter.snapshot()['total_tokens']
-            gen = stages.generate_patch(self.llm, task, gen_base_ctx, skills, leakguard=leakguard, model=cfg.model)
+            gen = stages.generate_patch(self.llm, task, gen_base_ctx, skills, leakguard=leakguard, model=cfg.model, max_skill_chars=cfg.skill_context_chars)
             tok1 = self.meter.snapshot()['total_tokens']
             eval_res = self._evaluate_with_ignore(gold, gen, base, f'{run_id}_{leg_name}', ignore_tests=pr_test_files)
             prec = ev.surface_precision_decomp(gold.files, gold.gold_surfaces(), gen.get('changed_files', []))
@@ -128,15 +169,22 @@ class Pipeline:
         selected_evidence = {'pr': pr_index_row['pr'], 'task_type': task_type, 'surfaces': list(gold.surfaces.keys())}
         new_skills = stages.generate_skills(self.llm, task, selected_evidence, [], gold_diff=gold_diff, gold_surfaces=gold.gold_surfaces())
         for skill in new_skills:
-            skill.version_scope.update({'date': pr_index_row['date'], 'source_id': sha, 'base_commit': base})
-        ops = stages.decide_skill_ops(self.llm, new_skills, list(self.store.skills.keys()))
+            skill.version_scope.update({'date': pr_index_row['date'], 'available_at': pr_index_row.get('available_at', pr_index_row['date']), 'source_id': sha, 'base_commit': base})
+        ops = stages.decide_skill_ops(self.llm, new_skills, list(self.store.skills.values()))
         for (op, sk, target) in ops:
             self.store.apply_op(op, sk, target=target, note=f"from PR#{pr_index_row['pr']}")
+        for name in legs['skill_guided']['skills_used']:
+            self.store.update_stats(name, legs['skill_guided']['task_success'])
         self.store.save()
         rec['skill_update'] = {'n_new': len(new_skills), 'names': [s.name for s in new_skills], 'active_skills': len(self.store.skills)}
         with open(os.path.join(rundir, 'record.json'), 'w') as f:
             json.dump(rec, f, indent=2)
         return rec
+
+    def _retrieve(self, row, task_type, keywords):
+        return self.store.retrieve(task_type, keywords, top_k=self.cfg.retrieve_k,
+                                   before_date=row['date'], query=row['subject'], mode=self.cfg.retrieval_mode,
+                                   repo=self.cfg.repo, base_ref=row['base'], exclude_sources=(row['sha'], row['pr']))
 
     def _evaluate_with_ignore(self, gold, gen, base, run_id, ignore_tests):
         saved = self.cfg.ignore_tests
@@ -169,19 +217,29 @@ class Pipeline:
             import subprocess
             gen_diff = subprocess.run(['git', '-C', sb.path, 'diff'], capture_output=True, text=True).stdout
             detail['gen_diff_size'] = len(gen_diff)
+            tracked = subprocess.run(['git', '-C', sb.path, 'diff', '--name-only', 'HEAD'], capture_output=True, text=True, check=True).stdout.splitlines()
+            added = subprocess.run(['git', '-C', sb.path, 'ls-files', '--others', '--exclude-standard'], capture_output=True, text=True, check=True).stdout.splitlines()
+            detail['actual_changed_files'] = sorted(set(tracked + added))
+            applies_clean = applies_clean and bool(detail['actual_changed_files'])
             if cfg.run_existing_tests and applies_clean:
                 (inst_ok, inst_msg) = sb.pip_install_e(cfg.python)
                 detail['install_ok'] = inst_ok
                 tr = sb.run_pytest(cfg.python, targets=cfg.test_targets, ignore=cfg.ignore_tests, timeout=900)
-                existing_pass = tr.ok
+                existing_pass = inst_ok and tr.ok
                 detail['pytest'] = {'passed': tr.passed, 'failed': tr.failed, 'errors': tr.errors, 'collected': tr.collected}
                 detail['pytest_tail'] = tr.raw_tail[-600:]
+                detail['extra_checks'] = []
+                for command in cfg.check_commands:
+                    checked = subprocess.run(command, cwd=sb.path, capture_output=True, text=True, timeout=900)
+                    detail['extra_checks'].append({'command': command, 'returncode': checked.returncode})
+                    existing_pass = existing_pass and checked.returncode == 0
         except Exception as e:
+            existing_pass = False
             detail['eval_error'] = str(e)
         finally:
             sb.destroy()
-        surface = ev.surface_f1(gold.gold_surfaces(), gen.get('changed_files', []))
-        loc = ev.file_localization(gold.files, gen.get('changed_files', []))
+        surface = ev.surface_f1(gold.gold_surfaces(), detail.get('actual_changed_files', []))
+        loc = ev.file_localization(gold.files, detail.get('actual_changed_files', []))
         task_success = applies_clean and existing_pass
         hard_ok = existing_pass
         return ev.EvalResult(patch_applies_clean=applies_clean, existing_tests_pass=existing_pass, gold_tests_pass=False, surface=surface, localization=loc, task_success=task_success, hard_constraints_ok=hard_ok, detail=detail)

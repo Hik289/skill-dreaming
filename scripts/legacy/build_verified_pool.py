@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(SWE, 'adapter'))
 from skill_dream.llm import LLMClient
 from skill_dream.skill_store import SkillStore
 POOL_ROOT = os.path.join(SWE, 'verified_pool')
-MODEL = os.environ.get('SD_MODEL', 'claude-opus-4-8')
+MODEL = os.environ['SD_MODEL']
 
 def repo_key(repo):
     return repo.replace('/', '__')

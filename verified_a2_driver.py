@@ -6,7 +6,7 @@ from skill_dream.config import BENCHMARK_ROOT, AGENT_CONFIG
 SWE = str(BENCHMARK_ROOT)
 MINI = os.path.join(SWE, 'miniagent')
 sys.path.insert(0, os.path.join(SWE, 'adapter'))
-POOL = os.path.join(SWE, 'verified_pool_opus55')
+POOL = os.environ.get('SD_SKILL_POOL') or os.path.join(SWE, 'verified_pool')
 EMB_CACHE = os.path.join(MINI, 'skill_emb_cache')
 os.makedirs(EMB_CACHE, exist_ok=True)
 from skill_dream.embedding import embed_one, cosine
@@ -37,7 +37,8 @@ def skill_embed_text(sk):
     return '  '.join(parts)[:8000]
 
 def cache_key(t):
-    return hashlib.sha1(t.encode('utf-8', 'replace')).hexdigest()
+    identity = os.environ.get('SD_EMBEDDING_ENDPOINT', '') + os.environ.get('SD_EMBEDDING_MODEL', '')
+    return hashlib.sha256((identity + '\n' + t).encode('utf-8', 'replace')).hexdigest()
 
 def embed_cached_one(t):
     cp = os.path.join(EMB_CACHE, cache_key(t) + '.json')
@@ -63,7 +64,8 @@ def retrieve_top8(problem, skills, top_k=8, min_cos=0.2):
         c = cosine(q, v)
         scored.append((c, sk))
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [sk for (c, sk) in scored if c >= min_cos][:top_k]
+    from skill_dream.skill_context import compatible_subset
+    return [sk.to_dict() for sk in compatible_subset([sk for c, sk in scored if c >= min_cos], top_k)]
 SKILL_PREAMBLE = "The following engineering patterns were distilled from this repository's own merged history of fixing similar issues. They encode where relevant code tends to live and how fixes in this codebase are structured. Treat them as strong priors from a senior maintainer of THIS repo:\n- Early in your exploration, open and read the files/modules these patterns point to.\n- Prefer the conventions they describe unless the code clearly contradicts them.\n- Heed every listed pitfall; they mark mistakes previously made on this repo.\n"
 
 def render_skills(skills):
@@ -94,13 +96,13 @@ def build_task(inst, method):
     tdate = str(inst.get('created_at', ''))
     skills = load_pool(repo)
     safe = []
+    from skill_dream.skill_context import eligible, pack_skills
     for sk in skills:
-        sd = (sk.get('version_scope') or {}).get('date') or ''
-        if sd and tdate and (sd < tdate):
+        if tdate and eligible(sk, tdate, [inst['instance_id'], inst.get('base_commit')]):
             safe.append(sk)
     top = retrieve_top8(ps, safe, top_k=8, min_cos=0.2)
-    block = render_skills(top)
-    return (ps + ('\n\n' + block if block else ''), len(top))
+    block, included, _ = pack_skills(top, int(os.environ.get('SD_SKILL_CONTEXT_CHARS', '12000')))
+    return (ps + ('\n\n' + block if block else ''), len(included))
 
 def run_one(iid, method):
     from minisweagent.environments.docker import DockerEnvironment

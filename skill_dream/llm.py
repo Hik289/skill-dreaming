@@ -3,9 +3,9 @@ import json, time, os
 from dataclasses import dataclass, field
 from typing import Optional
 MAX_RETRIES = 6
-MODEL_MAIN = os.environ.get('SD_MODEL', 'claude-sonnet-4-6')
-MODEL_HEAVY = os.environ.get('SD_MODEL_HEAVY', MODEL_MAIN)
-MODEL_CHEAP = os.environ.get('SD_MODEL_CHEAP', MODEL_MAIN)
+MODEL_MAIN = os.environ.get('SD_MODEL') or ''
+MODEL_HEAVY = os.environ.get('SD_MODEL_HEAVY') or MODEL_MAIN
+MODEL_CHEAP = os.environ.get('SD_MODEL_CHEAP') or MODEL_MAIN
 
 class RateLimitExhausted(RuntimeError):
     pass
@@ -27,7 +27,7 @@ class TokenMeter:
         r['calls'] += 1
 
     def snapshot(self):
-        return {'input_tokens': self.input_tokens, 'output_tokens': self.output_tokens, 'total_tokens': self.input_tokens + self.output_tokens, 'calls': self.calls, 'by_role': dict(self.by_role)}
+        return {'input_tokens': self.input_tokens, 'output_tokens': self.output_tokens, 'total_tokens': self.input_tokens + self.output_tokens, 'calls': self.calls, 'by_role': {role: dict(values) for role, values in self.by_role.items()}}
 
 class LLMClient:
 
@@ -44,10 +44,13 @@ class LLMClient:
         self.meter = meter or TokenMeter()
 
     def complete(self, prompt: str, *, role: str='generic', model: str=MODEL_MAIN, max_tokens: int=2048, system: Optional[str]=None, temperature: float=0.0) -> str:
+        model = model or os.environ.get('SD_MODEL', '')
+        if not model:
+            raise RuntimeError('Set SD_MODEL before making model calls')
         kwargs = dict(model=model, max_tokens=max_tokens, messages=[{'role': 'user', 'content': prompt}])
         if system:
             kwargs['system'] = system
-        if not model.startswith('claude-opus'):
+        if os.environ.get('SD_SEND_TEMPERATURE', '1') != '0':
             kwargs['temperature'] = temperature
         kwargs['timeout'] = 120.0
         last_err = None

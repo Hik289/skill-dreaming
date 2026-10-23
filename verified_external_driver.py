@@ -6,7 +6,7 @@ from skill_dream.config import BENCHMARK_ROOT, AGENT_CONFIG
 SWE = str(BENCHMARK_ROOT)
 MINI = os.path.join(SWE, 'miniagent')
 sys.path.insert(0, os.path.join(SWE, 'adapter'))
-POOL = os.path.join(SWE, 'verified_pool_opus55')
+POOL = os.environ.get('SD_SKILL_POOL') or os.path.join(SWE, 'verified_pool')
 EMB_CACHE = os.path.join(MINI, 'skill_emb_cache')
 os.makedirs(EMB_CACHE, exist_ok=True)
 from skill_dream.embedding import embed_one, cosine
@@ -40,10 +40,10 @@ def load_pool(repo):
     return sk
 
 def leak_safe_pool(repo, tdate):
+    from skill_dream.skill_context import eligible
     out = []
     for sk in load_pool(repo):
-        sd = (sk.get('version_scope') or {}).get('date') or ''
-        if sd and tdate and (sd < tdate):
+        if tdate and eligible(sk, tdate, globals().get('MAIN', ())):
             out.append(sk)
     return out
 _ev = {}
@@ -149,8 +149,9 @@ def build_task(inst, method):
     import re
     tt = 'bugfix'
     top = METHODS[method](repo, tdate, kws, tt, top_k=8)
-    block = render(top)
-    return (ps + ('\n\n' + block if block else ''), len(top))
+    from skill_dream.skill_context import pack_skills
+    block, included, _ = pack_skills(top, int(os.environ.get('SD_SKILL_CONTEXT_CHARS', '12000')))
+    return (ps + ('\n\n' + block if block else ''), len(included))
 
 def run_one(iid, method):
     from minisweagent.environments.docker import DockerEnvironment

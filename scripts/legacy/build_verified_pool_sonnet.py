@@ -6,8 +6,8 @@ SWE = str(BENCHMARK_ROOT)
 sys.path.insert(0, os.path.join(SWE, 'adapter'))
 from skill_dream.llm import LLMClient
 from skill_dream.skill_store import SkillStore
-POOL_ROOT = os.path.join(SWE, 'verified_pool_sonnet')
-MODEL = os.environ.get('SD_MODEL', 'claude-sonnet-4-6')
+POOL_ROOT = os.environ.get('SD_ALTERNATE_SKILL_POOL') or os.path.join(SWE, 'verified_pool_alternate')
+MODEL = os.environ['SD_MODEL']
 DISTILL_TAG = 'verified_sonnet'
 
 def repo_key(repo):

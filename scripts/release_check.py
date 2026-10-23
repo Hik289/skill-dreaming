@@ -12,12 +12,14 @@ IGNORED = {'.git', '.venv', '__pycache__', '.pytest_cache', 'workspace', 'build'
 PUBLICATION_DIRECTORIES = {'paper', 'papers', 'manuscript', 'arxiv', 'overleaf', 'assets'}
 PUBLICATION_SUFFIXES = {'.pdf', '.tex', '.bib', '.cls', '.bst', '.sty'}
 PUBLICATION_DOCUMENTS = {'docs/method.md', 'docs/results.md'}
+PUBLIC_ASSETS = {'assets/main_figure.png'}
 PATTERNS = {
     'private_key': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
     'provider_token': re.compile(r'\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[A-Z0-9]{16})\b'),
     'personal_path': re.compile(r'/(?:Users|home)/[^\s/\x22\x27]+|[A-Z]:\\Users\\[^\\\s]+'),
     'private_endpoint': re.compile(r'https?://(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|[^/\s]+\.services\.ai\.azure\.com)(?::\d+)?'),
     'url_credentials': re.compile(r'https?://[^/@\s]+:[^/@\s]+@'),
+    'concrete_model_id': re.compile(r'\b(?:claude[-_/]?)?(?:opus|sonnet|haiku)[\s_./-]*(?:\d[\d\s_.-]*)\b', re.I),
 }
 
 
@@ -35,7 +37,7 @@ def check(paths, forbidden=(), code_only=False):
     for path in sorted(paths):
         relative_path = path.relative_to(ROOT)
         relative = str(relative_path)
-        if code_only and (PUBLICATION_DIRECTORIES.intersection(part.casefold() for part in relative_path.parts)
+        if code_only and relative_path.as_posix() not in PUBLIC_ASSETS and (PUBLICATION_DIRECTORIES.intersection(part.casefold() for part in relative_path.parts)
                           or path.suffix.casefold() in PUBLICATION_SUFFIXES
                           or relative_path.as_posix().casefold() in PUBLICATION_DOCUMENTS
                           or relative.casefold().endswith(('.zip', '.tar.gz'))):

@@ -7,8 +7,8 @@ def _path_exists_at(repo: str, ref: str, path: str) -> bool:
     return r.returncode == 0
 
 def _symbol_exists_at(repo: str, ref: str, symbol: str, hint_paths: list) -> bool:
-    pat = re.compile(f'(def|class)\\s+{re.escape(symbol)}\\b')
-    for p in hint_paths[:8]:
+    pat = re.compile(rf'\b{re.escape(symbol)}\b')
+    for p in hint_paths:
         out = subprocess.run(['git', '-C', repo, 'show', f'{ref}:{p}'], capture_output=True, text=True)
         if out.returncode == 0 and pat.search(out.stdout):
             return True
@@ -22,10 +22,6 @@ def extract_skill_refs(skill) -> dict:
         for s in skill.trigger.get('repository_surfaces', []):
             if isinstance(s, str) and ('/' in s and s.endswith(('.py', '.rst', '.toml', '.cfg'))):
                 paths.append(s)
-    if not symbols:
-        blob = ' '.join(skill.procedure or [])
-        for m in re.finditer('`?([A-Za-z_][A-Za-z0-9_]*)\\(\\)?`?', blob):
-            pass
     return {'paths': paths, 'symbols': symbols}
 
 def assess_staleness(repo: str, base_ref: str, skill) -> dict:
@@ -44,13 +40,13 @@ def assess_staleness(repo: str, base_ref: str, skill) -> dict:
     elif path_total >= 2 and path_hit / path_total < 0.5:
         stale = True
         reason = f'majority referenced paths absent ({path_hit}/{path_total})'
-    elif sym_total > 0 and sym_hit == 0 and (path_total == 0):
+    elif sym_total > 0 and sym_hit == 0 and path_hit > 0:
         stale = True
         reason = 'all referenced symbols absent (API renamed)'
     return {'stale': stale, 'path_hit': path_hit, 'path_total': path_total, 'symbol_hit': sym_hit, 'symbol_total': sym_total, 'reason': reason}
 
 def record_version_scope(skill, evidence_pr: dict, referenced_paths: list, referenced_symbols: list):
-    skill.version_scope = {'valid_from_sha': evidence_pr.get('sha', '')[:12], 'valid_from_date': evidence_pr.get('date', '')[:10], 'referenced_paths': referenced_paths[:12], 'referenced_symbols': referenced_symbols[:12], 'last_validated': evidence_pr.get('date', '')[:10]}
+    skill.version_scope.update({'valid_from_sha': evidence_pr.get('sha', ''), 'date': evidence_pr.get('date', ''), 'valid_from_date': evidence_pr.get('date', ''), 'referenced_paths': referenced_paths[:12], 'referenced_symbols': referenced_symbols[:12], 'last_validated': evidence_pr.get('date', '')})
     return skill
 
 def detect_supersede(skills: list) -> list:

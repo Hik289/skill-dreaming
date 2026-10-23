@@ -43,6 +43,28 @@ class ReleaseTests(unittest.TestCase):
                 result = release_check.check([source, readme], code_only=True)
             self.assertTrue(result['passed'], result['issues'])
 
+    def test_release_allows_only_the_current_overview_asset(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            overview, extra = root / 'assets' / 'main_figure.png', root / 'assets' / 'other.png'
+            overview.parent.mkdir()
+            overview.write_bytes(b'fixture')
+            extra.write_bytes(b'fixture')
+            with patch.object(release_check, 'ROOT', root):
+                self.assertTrue(release_check.check([overview], code_only=True)['passed'])
+                self.assertFalse(release_check.check([extra], code_only=True)['passed'])
+
+    def test_release_rejects_concrete_model_versions_without_echoing_them(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            source = root / 'settings.txt'
+            model_id = 'son' + 'net-' + '4-6'
+            source.write_text('model=' + model_id)
+            with patch.object(release_check, 'ROOT', root):
+                result = release_check.check([source])
+            self.assertEqual(result['issues'][0]['kind'], 'concrete_model_id')
+            self.assertNotIn(model_id, str(result))
+
     def test_chronological_retrieval_rejects_unknown_same_and_future_evidence(self):
         with tempfile.TemporaryDirectory() as root:
             store = SkillStore(root)
