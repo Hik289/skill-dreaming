@@ -5,8 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml"><img src="https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml/badge.svg" alt="Checks"></a>
-  <img src="https://img.shields.io/badge/Python-research%20code-3776AB?logo=python&amp;logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.10+">
 </p>
 
 ![Skill Dreaming: PR-guided skill generation, alignment, and repository maintenance](assets/main_figure.png)
