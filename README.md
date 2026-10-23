@@ -1,9 +1,13 @@
-# Skill Dreaming
+<h1 align="center">Skill Dreaming</h1>
 
-**PR streams teach reusable skills. Skills help extend and maintain the repository.**
+<p align="center">
+  <strong>PR streams teach reusable skills. Skills help extend and maintain the repository.</strong>
+</p>
 
-[![Checks](https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml/badge.svg)](https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/Python-research%20code-3776AB?logo=python&logoColor=white)
+<p align="center">
+  <a href="https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml"><img src="https://github.com/Hik289/skill-dreaming/actions/workflows/ci.yml/badge.svg" alt="Checks"></a>
+  <img src="https://img.shields.io/badge/Python-research%20code-3776AB?logo=python&amp;logoColor=white" alt="Python">
+</p>
 
 ![Skill Dreaming: PR-guided skill generation, alignment, and repository maintenance](assets/main_figure.png)
 
@@ -34,53 +38,17 @@ skill-dream --help
 
 ## Use
 
-Initialize a skill store without model credentials:
-
-```bash
-skill-dream init --repo ./your-repository --skills ./workspace/skills
-```
-
-Replay tasks using local repository history and a task manifest:
-
-```bash
-skill-dream replay \
-  --repo ./your-repository \
-  --manifest ./workspace/tasks.json \
-  --pr-index ./workspace/history.json \
-  --skills ./workspace/skills \
-  --workdir ./workspace/replay \
-  --limit 1
-```
+Start with an existing Git repository and a chronological task manifest. Initialize a repository-specific skill store, optionally bootstrap it from accepted historical PRs, and replay incoming requests.
 
 The default replay preserves the original evaluate-then-learn protocol: generate from the base checkout and earlier skills, evaluate, then distill the observed PR for **later** tasks. Plan ranking in this mode is a heuristic, not execution verification.
 
-To enable candidate verification and skill alignment **before** final implementation, add:
-
-```bash
-  --verified-learning \
-  --learning-candidates 3 \
-  --repair-attempts 1 \
-  --max-active-skills 256 \
-  --retrieve-k 8 \
-  --retrieval-mode lexical \
-  --skill-context-chars 12000
-```
-
-These are configurable budgets, not experimental results. `dense` and `hybrid` retrieval are also supported. The final actor receives skill procedures, not the verified candidate patch as a ready-made answer. Held-out target changes are used only after final evaluation. Each replay task starts from its recorded base; generated patches are not silently merged into the next task.
-
-Bootstrap an initial pool from accepted, earlier PR records with `init --manifest ... --before-date ...`. Inspect and bound an existing pool with:
-
-```bash
-skill-dream maintain --skills ./workspace/skills --max-active-skills 256
-```
+The verified-learning workflow instead verifies candidate changes and aligns skills **before** final implementation. The final actor receives skill procedures, not a candidate patch as a ready-made answer. Held-out target changes are used only after final evaluation. Each replay task starts from its recorded base; generated patches are not silently merged into the next task.
 
 See [Running the code](docs/reproduction.md) for manifest fields, chronological cutoffs, benchmark assets, and optional drivers. Run generated code in an appropriately restricted environment: a Git worktree isolates checkout state, not operating-system permissions.
 
 ## Configure
 
-Model-backed commands require `ANTHROPIC_API_KEY` and an explicit `SD_MODEL`. Dense retrieval additionally requires `SD_EMBEDDING_ENDPOINT`, `SD_EMBEDDING_API_KEY`, and `SD_EMBEDDING_MODEL`. No concrete model ID or private endpoint is built in. Set `SD_SEND_TEMPERATURE=0` for providers that reject sampling-temperature parameters.
-
-[.env.example](.env.example) and [configs/agent.example.json](configs/agent.example.json) contain credential-free templates. The process reads environment variables; it does not automatically load `.env.example`. Local credentials and runtime assets must stay out of version control. Model-backed runs can incur provider charges; the offline checks below do not make model calls.
+[.env.example](.env.example) and [configs/agent.example.json](configs/agent.example.json) provide credential-free configuration templates. Model choices, provider credentials, and runtime assets are configured locally and kept out of version control. See [Running the code](docs/reproduction.md) for setup instructions. Model-backed runs can incur provider charges; the offline checks below do not make model calls.
 
 ## Code Layout
 
@@ -107,11 +75,3 @@ python scripts/release_check.py --staged
 python -m unittest discover -s tests -v
 python -m skill_dream.cli --help
 ```
-
-## Evaluation Scope
-
-Local test success is a regression signal, **not** proof of feature correctness or maintainer approval. The maintenance check verifies required file-surface coverage; semantic correctness still needs task-specific tests and review. Use `--check-command` for additional build or static checks. Official benchmark resolution comes from the benchmark harness, not this local proxy.
-
-The Verified and Pro drivers use separately prepared datasets and skill pools. Named external adapters are explicitly **method-inspired approximations**, not author implementations. Historical utilities retain their entry points; several need external adapters. See [Running the code](docs/reproduction.md) for these boundaries and the supported commands.
-
-This repository distributes code, usage instructions, and the overview figure only. Manuscripts, publication bundles, result reports, datasets, prebuilt pools, and credentials stay outside the release. New workflow components are covered by offline tests; no new benchmark scores are claimed by this update.
