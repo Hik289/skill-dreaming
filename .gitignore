@@ -12,6 +12,11 @@ dist/
 !.env.example
 configs/agent.json
 workspace/
+verified_runner/verified/
+verified_runner/embedding_cache/
+verified_runner/verified_setup_policy.json
+**/pools/
+**/distillation/
 runs/
 runs_fix/
 logs/

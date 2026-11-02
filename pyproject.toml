@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 dependencies = ["anthropic>=0.40,<1"]
 
 [project.optional-dependencies]
-benchmark = ["mini-swe-agent==2.4.6", "swebench"]
+benchmark = ["mini-swe-agent==2.4.6", "swebench==4.1.0", "litellm==1.97.0", "docker==7.2.0"]
 
 [project.scripts]
 skill-dream = "skill_dream.cli:main"

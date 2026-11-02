@@ -16,6 +16,7 @@ PUBLIC_ASSETS = {'assets/main_figure.png'}
 PATTERNS = {
     'private_key': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
     'provider_token': re.compile(r'\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[A-Z0-9]{16})\b'),
+    'bedrock_token': re.compile(r'\bABSK[A-Za-z0-9+/=_-]{30,}'),
     'personal_path': re.compile(r'/(?:Users|home)/[^\s/\x22\x27]+|[A-Z]:\\Users\\[^\\\s]+'),
     'private_endpoint': re.compile(r'https?://(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|[^/\s]+\.services\.ai\.azure\.com)(?::\d+)?'),
     'url_credentials': re.compile(r'https?://[^/@\s]+:[^/@\s]+@'),

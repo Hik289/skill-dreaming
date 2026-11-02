@@ -1,0 +1,11 @@
+{
+  "mode": "a2",
+  "dense_threshold": 0.28,
+  "top_k": 8,
+  "rrf_k": 60,
+  "pool_size_per_repo": 200,
+  "cross_repo": false,
+  "fallback": "Top RRF candidates if none pass the dense threshold",
+  "prefix": "\n\n<repository_skills>\nThe following engineering patterns were distilled from this repository's own merged history of fixing similar issues. They encode where relevant code tends to live and how fixes in this codebase are structured. Treat them as strong priors from a senior maintainer of THIS repo:\n- Early in your exploration, open and read the files/modules these patterns point to.\n- Prefer the conventions they describe unless the code clearly contradicts them.\n- Heed every listed pitfall; they mark mistakes previously made on this repo.\n\n",
+  "suffix": "IMPORTANT - these patterns are HINTS from past history, not ground truth about the current code:\n- They may be outdated. File paths, function/class names, and line numbers mentioned above MUST be verified by actually reading the current code (grep/open the file) before you act on them. Never edit a path or symbol you have not confirmed exists in this checkout.\n- If a pattern contradicts what you observe in the real code, trust the real code and ignore the pattern.\n- If none of the patterns clearly fit this specific issue, disregard them and solve the issue from the code itself. Do not force-fit an irrelevant pattern.\n- Base every change on evidence you have seen in the actual repository, not on these hints alone.\n</repository_skills>\n"
+}
