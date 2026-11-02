@@ -5,6 +5,8 @@
 </p>
 
 <p align="center">
+  <a href="https://arxiv.org/abs/2610.36188"><img src="https://img.shields.io/badge/arXiv-2610.36188-b31b1b" alt="arXiv:2610.36188"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-3da639" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white" alt="Python 3.10+">
 </p>
 
@@ -79,4 +81,20 @@ Run the release checks, offline tests, and command-line help:
 python scripts/release_check.py --staged
 python -m unittest discover -s tests -v
 python -m skill_dream.cli --help
+```
+
+## Citation
+
+Please cite our paper if you use Skill Dreaming in your research:
+
+```bibtex
+@misc{song2026skilldreaming,
+  title         = {Skill Dreaming: Evolving Repository Skills through Pull Request Streams},
+  author        = {Xinyuan Song and Hasibul Haque and Jay Somasundaram and Ryan Turner and Bowen Zhu and Liang Zhao},
+  year          = {2026},
+  eprint        = {2610.36188},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  url           = {https://arxiv.org/abs/2610.36188}
+}
 ```
