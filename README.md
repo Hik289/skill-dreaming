@@ -49,6 +49,8 @@ Start with an existing Git repository and a task manifest ordered by time. Initi
 
 In both modes, each task starts from its recorded repository state. Generated patches are not automatically merged or carried forward as the next task's base. See [Running the code](docs/reproduction.md) for input formats, temporal filtering, benchmark setup, and optional drivers.
 
+The [three-repository example](examples/pro_3repo/README.md) includes two 600-skill snapshots, their referenced historical PR records, and a local credential template.
+
 Run generated code in a suitably restricted environment. A Git worktree separates working copies; it is not a security sandbox.
 
 ## Configure

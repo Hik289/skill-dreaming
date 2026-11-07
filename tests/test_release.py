@@ -65,6 +65,19 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(result['issues'][0]['kind'], 'concrete_model_id')
             self.assertNotIn(model_id, str(result))
 
+    def test_url_credentials_do_not_cross_json_string_boundaries(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            harmless = root / 'harmless.jsonl'
+            secret = root / 'secret.jsonl'
+            harmless.write_text('{"first":"http://example.org","second":"tag:other@host"}\n')
+            secret.write_text('{"url":"https://user:' + 'password@host.example/path"}\n')
+            with patch.object(release_check, 'ROOT', root):
+                self.assertTrue(release_check.check([harmless])['passed'])
+                result = release_check.check([secret])
+            self.assertIn('url_credentials', [issue['kind'] for issue in result['issues']])
+            self.assertNotIn('password', str(result))
+
     def test_chronological_retrieval_rejects_unknown_same_and_future_evidence(self):
         with tempfile.TemporaryDirectory() as root:
             store = SkillStore(root)

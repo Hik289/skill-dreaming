@@ -1,0 +1,63 @@
+{
+  "historical_prs": {
+    "ansible/ansible": {
+      "count": 369,
+      "path": "historical_prs/ansible__ansible.jsonl",
+      "reconstructed_commits": 0,
+      "sha256": "eb0d24767ab7f986b488418afa3e65e0f1dacf69442607da3074d6270146c151"
+    },
+    "internetarchive/openlibrary": {
+      "count": 389,
+      "path": "historical_prs/internetarchive__openlibrary.jsonl",
+      "reconstructed_commits": 0,
+      "sha256": "4ecc8c8f0e7f0488b9d5ae1823480d7292ab15ff7e2125e46439e672f7186470"
+    },
+    "qutebrowser/qutebrowser": {
+      "count": 369,
+      "path": "historical_prs/qutebrowser__qutebrowser.jsonl",
+      "reconstructed_commits": 3,
+      "sha256": "97f769531f085f0e1c364792526e737243e845679889e299f82537eab133c0d5"
+    }
+  },
+  "redactions": {
+    "credential": 0,
+    "email": 164,
+    "personal_path": 16,
+    "private_endpoint": 8,
+    "private_key": 0,
+    "url_credentials": 1
+  },
+  "scope": "public example from existing repository snapshots; not a bit-for-bit reconstruction of the original headline run",
+  "skill_sets": {
+    "fresh_v6/ansible/ansible": {
+      "count": 200,
+      "path": "skill_sets/fresh_v6/ansible__ansible.jsonl",
+      "sha256": "f3a79cc7bd505193377eb7fea8ce368114427e63960c3c03355236065e33f256"
+    },
+    "fresh_v6/internetarchive/openlibrary": {
+      "count": 200,
+      "path": "skill_sets/fresh_v6/internetarchive__openlibrary.jsonl",
+      "sha256": "efd5d17536fd886096dde86db791d3857725379a3c69ef8812a1597c6a94cd92"
+    },
+    "fresh_v6/qutebrowser/qutebrowser": {
+      "count": 200,
+      "path": "skill_sets/fresh_v6/qutebrowser__qutebrowser.jsonl",
+      "sha256": "768136c58bfbc59a1229623fcd6a48d96653ce6c8d3ac0e5d86afed6a0ac3416"
+    },
+    "legacy_available/ansible/ansible": {
+      "count": 200,
+      "path": "skill_sets/legacy_available/ansible__ansible.jsonl",
+      "sha256": "dea30cd47f46b01204d70179ff6ce54e425708bad8da5f61646a4652581bca2b"
+    },
+    "legacy_available/internetarchive/openlibrary": {
+      "count": 200,
+      "path": "skill_sets/legacy_available/internetarchive__openlibrary.jsonl",
+      "sha256": "4b3d5665455b2908eb481834e87099ba76dd6067758fb1754e824f4f76808e5f"
+    },
+    "legacy_available/qutebrowser/qutebrowser": {
+      "count": 200,
+      "path": "skill_sets/legacy_available/qutebrowser__qutebrowser.jsonl",
+      "sha256": "6618c01ebf7b53a12933241a31129262ee46e3584a514d76d2c802b50ca9bd16"
+    }
+  }
+}

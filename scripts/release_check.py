@@ -19,7 +19,7 @@ PATTERNS = {
     'bedrock_token': re.compile(r'\bABSK[A-Za-z0-9+/=_-]{30,}'),
     'personal_path': re.compile(r'/(?:Users|home)/[^\s/\x22\x27]+|[A-Z]:\\Users\\[^\\\s]+'),
     'private_endpoint': re.compile(r'https?://(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|[^/\s]+\.services\.ai\.azure\.com)(?::\d+)?'),
-    'url_credentials': re.compile(r'https?://[^/@\s]+:[^/@\s]+@'),
+    'url_credentials': re.compile(r'https?://[^/@\s\x22\\]+:[^/@\s\x22\\]+@'),
     'concrete_model_id': re.compile(r'\b(?:claude[-_/]?)?(?:opus|sonnet|haiku)[\s_./-]*(?:\d[\d\s_.-]*)\b', re.I),
 }
 
