@@ -70,6 +70,9 @@ class Pipeline:
         record['steps']['1_diagnose'] = {'task': task}
         from .workflow import historical_rows
         hist = historical_rows(pr_history, pr_index_row)
+        if cfg.retrieval_mode == 'anchored':
+            from .issue_alignment import rank_historical_prs
+            hist = rank_historical_prs(task, hist, pr_index_row['date'], (sha, pr_index_row['pr']))
         detection_skills = self._retrieve(pr_index_row, 'pr-detection', re.findall(r'[a-z_]{3,}', task.lower())) if cfg.use_skills else []
         det = stages.detect_prs(self.llm, task, hist, skills=detection_skills)
         task_type = det.get('task_type', 'feature_addition')
@@ -145,6 +148,9 @@ class Pipeline:
         rec['gold'] = {'files': gold.files, 'surfaces': gold.surfaces, 'pr_touched_test_files': pr_test_files, 'n_files': gold.n_files}
         from .workflow import historical_rows
         hist = historical_rows(pr_history, pr_index_row)
+        if cfg.retrieval_mode == 'anchored':
+            from .issue_alignment import rank_historical_prs
+            hist = rank_historical_prs(task, hist, pr_index_row['date'], (sha, pr_index_row['pr']))
         detection_skills = self._retrieve(pr_index_row, 'pr-detection', re.findall(r'[a-z_]{3,}', task.lower())) if cfg.use_skills else []
         det = stages.detect_prs(self.llm, task, hist, skills=detection_skills)
         task_type = det.get('task_type', 'feature_addition')

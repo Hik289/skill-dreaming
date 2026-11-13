@@ -165,7 +165,7 @@ class SkillStore:
 
     def retrieve(self, task_type: str, keywords: list, top_k: int=5, before_date: Optional[str]=None, min_relevance: float=0.5, *, query=None, mode='lexical', repo=None, base_ref=None, exclude_sources=(), embed=None, min_cos=0.2) -> list:
         from .skill_context import eligible, compatible_subset
-        if top_k < 0 or mode not in {'lexical', 'dense', 'hybrid'}:
+        if top_k < 0 or mode not in {'lexical', 'dense', 'hybrid', 'anchored'}:
             raise ValueError('invalid retrieval configuration')
         if top_k == 0:
             return []
@@ -175,6 +175,11 @@ class SkillStore:
         if before_date and cutoff is None:
             raise ValueError('before_date must be an ISO date or timestamp')
         candidates = [sk for sk in self.skills.values() if eligible(sk, before_date, exclude_sources, repo, base_ref)]
+        if mode == 'anchored':
+            if not query:
+                raise ValueError('anchored retrieval requires a task query')
+            from .issue_alignment import rank_anchored_skills
+            return compatible_subset(rank_anchored_skills(query, candidates, len(candidates)), top_k)
         dense_scores = {}
         if mode in {'dense', 'hybrid'} and candidates:
             from .embedding import embed_batch, cosine

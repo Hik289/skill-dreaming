@@ -129,7 +129,7 @@ def main():
     p.add_argument('--test-targets', default=None)
     p.add_argument('--max-active-skills', type=int, default=256)
     p.add_argument('--retrieve-k', type=int, default=8)
-    p.add_argument('--retrieval-mode', choices=['lexical', 'dense', 'hybrid'], default='lexical')
+    p.add_argument('--retrieval-mode', choices=['lexical', 'dense', 'hybrid', 'anchored'], default='lexical')
     p.add_argument('--skill-context-chars', type=int, default=12000)
     p.add_argument('--verified-learning', action='store_true')
     p.add_argument('--learning-candidates', type=int, default=3)
